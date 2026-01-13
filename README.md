@@ -10,7 +10,7 @@
 <p align="left">
   <!-- AI 夥伴 (這裡放 Gemini) -->
   <img src="https://img.shields.io/badge/Co--coded%20with-Gemini_Pro-8E75B2?style=flat-square&logo=googlegemini&logoColor=white" />
-  <img src="https://img.shields.io/badge/Claude-3.5_Sonnet-D97757?style=flat-square&logo=anthropic&logoColor=white" />
+  <img src="https://img.shields.io/badge/Claude-4.5_Opus-D97757?style=flat-square&logo=anthropic&logoColor=white" />
 
 </p>
 
