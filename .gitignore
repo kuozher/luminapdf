@@ -4,6 +4,7 @@ dist/
 build/
 .DS_Store
 *.log
+note/
 
 # --- Rust / Tauri ---
 target/
