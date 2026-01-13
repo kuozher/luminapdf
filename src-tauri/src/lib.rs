@@ -27,6 +27,7 @@ struct AppState {
     virtual_pages: Mutex<Vec<VirtualPage>>,
     history: Mutex<Vec<Vec<VirtualPage>>>, 
     render_cache: Mutex<HashMap<(u16, String), Vec<u8>>>,
+    initial_file: Mutex<Option<String>>,
 }
 
 unsafe impl Send for AppState {}
@@ -101,6 +102,12 @@ fn map_bookmarks_to_names(item: PdfBookmark, map: &mut HashMap<u16, String>) {
 #[tauri::command]
 async fn pick_file() -> Option<String> {
     rfd::FileDialog::new().add_filter("PDF", &["pdf"]).pick_file().map(|p| p.display().to_string())
+}
+
+#[tauri::command]
+async fn get_startup_file(state: tauri::State<'_, AppState>) -> Result<Option<String>, String> {
+    let file = state.initial_file.lock().map_err(|_| "Lock fail")?;
+    Ok(file.clone())
 }
 
 #[tauri::command]
@@ -562,8 +569,17 @@ fn log_error(msg: String) { println!("Frontend Error: {}", msg); }
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .manage(AppState { documents: Mutex::new(HashMap::new()), virtual_pages: Mutex::new(Vec::new()), history: Mutex::new(Vec::new()), render_cache: Mutex::new(HashMap::new()) })
+        .manage(AppState { documents: Mutex::new(HashMap::new()), virtual_pages: Mutex::new(Vec::new()), history: Mutex::new(Vec::new()), render_cache: Mutex::new(HashMap::new()), initial_file: Mutex::new(None) })
         .setup(|app| {
+            let args: Vec<String> = std::env::args().collect();
+            if args.len() > 1 {
+                let path_arg = args[1].clone();
+                if std::path::Path::new(&path_arg).exists() {
+                    let state = app.state::<AppState>();
+                    *state.initial_file.lock().unwrap() = Some(path_arg);
+                }
+            }
+
             let resource_path = app.path().resource_dir().unwrap_or_default().join("pdfium.dll");
             let pdfium = match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./")) {
                 Ok(lib) => Pdfium::new(lib),
@@ -607,7 +623,7 @@ pub fn run() {
             })();
             match res { Ok(response) => response, Err(e) => tauri::http::Response::builder().status(500).body(e.to_string().into_bytes()).unwrap_or_else(|_| tauri::http::Response::new(Vec::new())) }
         })
-        .invoke_handler(tauri::generate_handler![ pick_file, pick_files, load_document, import_pages, log_error, rotate_pages, delete_pages, reorder_pages, undo, pick_save_path, save_document, get_page_text, search_document, rename_page, export_individual_pages, get_bookmarks, get_all_annotations ])
+        .invoke_handler(tauri::generate_handler![ pick_file, pick_files, load_document, import_pages, log_error, rotate_pages, delete_pages, reorder_pages, undo, pick_save_path, save_document, get_page_text, search_document, rename_page, export_individual_pages, get_bookmarks, get_all_annotations, get_startup_file ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

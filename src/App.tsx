@@ -123,20 +123,32 @@ function App() {
         } catch (e) { console.error(e); }
     }, [deleteTarget]);
 
+    const loadFromFilePath = async (path: string) => {
+        setIsFileLoading(true);
+        try {
+            const meta = await invoke<PageMetadata[]>("load_document", { path });
+            const anns = await invoke<AnnotationData[] | null>("get_all_annotations");
+            setPageMeta(meta); setCurrentPage(0); setCurrentFile(path); setAnnotations(anns || []);
+            setViewMode('reader'); // Reset mode to reader on new file
+            handleClearSearch(); setFocusedAnnotation(null); setScrollSignal(null); setReaderScrollTop(0); setDocId(Date.now()); setFileSessionId(Date.now()); setError(null);
+        } catch (e) { setError(String(e)); }
+        finally { setIsFileLoading(false); }
+    };
+
     const openFile = async () => {
         try {
             const selected = await invoke<string | null>("pick_file");
             if (selected) {
-                setIsFileLoading(true);
-                const meta = await invoke<PageMetadata[]>("load_document", { path: selected });
-                const anns = await invoke<AnnotationData[] | null>("get_all_annotations");
-                setPageMeta(meta); setCurrentPage(0); setCurrentFile(selected); setAnnotations(anns || []);
-                setViewMode('reader'); // Reset mode to reader on new file
-                handleClearSearch(); setFocusedAnnotation(null); setScrollSignal(null); setReaderScrollTop(0); setDocId(Date.now()); setFileSessionId(Date.now()); setError(null);
-                setIsFileLoading(false);
+                await loadFromFilePath(selected);
             }
         } catch (e) { setError(String(e)); setIsFileLoading(false); }
     };
+
+    useEffect(() => {
+        invoke<string | null>("get_startup_file").then(path => {
+            if (path) loadFromFilePath(path);
+        }).catch(console.error);
+    }, []);
 
     const handleSave = async () => {
         if (!currentFile) return;
