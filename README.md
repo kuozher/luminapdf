@@ -1,4 +1,4 @@
-    
+<img width="150" height="150" alt="Image" src="https://github.com/user-attachments/assets/c02c54d1-81b3-4499-949b-2062c47d41b0" /><br>    
 # Lumina PDF
 
 <p align="left">
@@ -26,6 +26,50 @@ Unlike traditional wrappers around web-based PDF.js, Lumina PDF bridges a high-p
 - **Modern UI**: A clean, distraction-free interface built with React, TypeScript, and TailwindCSS.
 - **Thumbnail Overlay**: A specialized Grid View for organizing pages via Drag & Drop.
 
+<table>
+  <tr>
+    <td width="25%">
+      <img src="https://github.com/user-attachments/assets/bf73fbde-94ec-4925-8f8b-d9e04809d940" alt="start" />
+    </td>
+    <td width="25%">
+      <img src="https://github.com/user-attachments/assets/58f17e02-4b8b-4c24-a79c-3929edfae446" alt="read mode" />
+    </td>
+    <td width="25%">
+      <img src="https://github.com/user-attachments/assets/d22a4f20-7ede-4ae4-a6cf-5aab52b6e11d" alt="grid mode" />
+    </td>
+    <td width="25%">
+      <img src="https://github.com/user-attachments/assets/ad9b38fd-14eb-4640-adb0-25e73270ea7a" alt="import" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center">start</td>
+    <td align="center">read mode</td>
+    <td align="center">grid mode</td>
+    <td align="center">import</td>  
+  </tr>
+  <tr>
+    <td>
+      <img src="https://github.com/user-attachments/assets/21892a4e-efd4-47cc-b5a2-8ce5abc9e30e" alt="export" />
+    </td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/7111fd50-43e8-4d82-af76-cdcdafdb6595" alt="bookmark" />
+    </td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/2bc1d75a-bb14-458f-a20c-c8d3fd25add0" alt="annotation" />
+    </td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/7a1e4a9d-98a0-4aff-a1b7-71d20fdad819" alt="search" />
+    </td>      
+  </tr>
+  <tr>
+    <td align="center">export</td>
+    <td align="center">bookmark</td>
+    <td align="center">annotation</td>
+    <td align="center">search</td>
+  </tr>
+</table>
+
+  
 ## 🛠 Tech Stack
 
 - **Core Logic**: [Rust](https://www.rust-lang.org/)
