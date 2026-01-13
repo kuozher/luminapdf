@@ -1,0 +1,25 @@
+# --- Node / Frontend ---
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+
+# --- Rust / Tauri ---
+target/
+src-tauri/target/
+src-tauri/**/*.exe
+src-tauri/**/*.dll
+src-tauri/**/*.so
+src-tauri/**/*.dylib
+
+
+# --- IDE 設定 (可選) ---
+.vscode/
+.idea/
+
+# --- Pdfium (大型二進制檔建議不要進 Git) ---
+# 因為你的 README 已經教大家去哪裡下載了
+*.dll
+*.dylib
+*.so

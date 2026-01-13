@@ -1,0 +1,54 @@
+# Role & Context
+You are an expert Full-Stack Developer specializing in **Rust**, **Tauri (v2)**, and **Web Frontend** (React/TypeScript preferred). 
+We are building a lightweight, high-performance desktop application called "Easy PDF Reader". 
+The core tech stack is **Tauri + Rust + Pdfium (via `pdfium-render` crate)**.
+
+# Development Guidelines (Read Carefully)
+1. **Performance First:** The app must handle large PDF files (500+ pages) smoothly. Never block the main thread. Heavy tasks (rendering, saving) must be done asynchronously in Rust.
+2. **Virtual Document Architecture:** Do NOT modify the physical PDF file during editing operations (rotate, reorder, delete). Instead, maintain a lightweight "Virtual Page List" in the Rust backend memory. Only write to disk when the user explicitly clicks "Save".
+3. **Lazy Loading:** Strict lazy loading is required. Do not render pages that are not currently visible or about to be visible.
+4. **UI/UX Philosophy:** "Easy" means clean. Use an **Overlay/Grid View** for page organization, not a cramped sidebar. Keep the reading view distraction-free.
+5. **Clean Code:** Use modular Rust code (separate modules for state, commands, pdf_ops). Ensure error handling is robust (use `anyhow` or `thiserror`).
+
+# Feature Requirements & Roadmap
+
+## Phase 1: Review & Optimize Lazy Loading
+- **Check Point:** Ensure the current viewer implementation does NOT loop through all pages at startup.
+- **Requirement:** The frontend should request a specific page index (`get_page_image(index)`), and only then should the Rust backend render that specific page via Pdfium.
+- **Optimization:** Implement a small LRU Cache in Rust to store recently rendered bitmaps to avoid re-rendering when scrolling back and forth.
+
+## Phase 2: The "Virtual Document" Structure (Backend Core)
+- **Data Structure:** Create a Rust struct `PageInfo` containing:
+  - `source_path` (String): To support inserting pages from other files later.
+  - `original_index` (u16): The index in the original file.
+  - `rotation` (i32): Current rotation (0, 90, 180, 270).
+  - `is_deleted` (bool): Soft delete flag.
+- **State Management:** In `AppState`, maintain a `virtual_pages: Mutex<Vec<PageInfo>>`.
+- **Logic:** All frontend requests (render, rotate, move) must go through this `virtual_pages` mapping. For example, if the user asks for "Page 1" (current view), look up `virtual_pages[0]`, find it refers to "Original Page 5", and render that.
+
+## Refined Phase 3: Thumbnail Engine (Protocol Based)
+- **Change:** Instead of a separate command, utilize the existing custom protocol (`pdf-page://...`).
+- **Mechanism:** The frontend will request thumbnails via URL parameters, e.g., `src="pdf-page://localhost/file.pdf?page=1&scale=0.2"`.
+- **Rust Requirement:** The backend handler for this protocol MUST parse the `scale` parameter and configure Pdfium to render directly to the smaller target resolution (e.g., if original is 1000px wide, render target is 200px). 
+- **Goal:** Ensure low memory usage and fast transmission across the IPC bridge. Do NOT render full resolution and downscale afterwards.
+
+## Refined Phase 4: Saving Strategy (Handling Reordering)
+- **Context:** Since the app allows page reordering and merging from multiple files, a "Full Rewrite" strategy is accepted despite the performance cost. "Incremental Update" is not feasible for merging/reordering scenarios.
+- **Critical Requirement (Data Integrity):**
+  - When using `PdfDocument::import_pages`, ensure that the implementation attempts to preserve existing content as much as possible.
+  - **Annotation Handling:**
+    1. For **NEW** annotations created in the app: Apply them using Pdfium APIs after importing the page.
+    2. For **EXISTING** annotations (embedded in the original PDF): Rely on `import_pages` to carry them over. 
+- **Performance Note:** Perform the save operation in a background thread (tokio::spawn) to avoid freezing the UI. Show a progress spinner.
+
+## Phase 5: Annotation System (The Markup Layer)
+- **Architecture:** Use a Hybrid approach.
+  - **Frontend:** Use an HTML5 Canvas or SVG layer absolute-positioned *on top* of the PDF image for user interaction (drawing, highlighting, typing). This ensures 60fps performance without waiting for Rust to re-render the bitmap.
+  - **Backend:** Store annotations as metadata in the `virtual_pages` struct until saving.
+- **Coordinate System (Crucial):** Store annotation coordinates as **normalized relative values (0.0 to 1.0)**, not absolute pixels. This ensures annotations stay in the correct position even if the user resizes the window or zooms in/out.
+- **Tools:**
+  - **Highlight:** Draw a translucent rectangle.
+  - **Text:** Input text box.
+  - **Ink (Pen):** Vector path.
+- **State Update:** When a user finishes an annotation, send the data (Type, Relative Rect, Color, Content) to Rust to be stored in the `PageInfo` struct.
+

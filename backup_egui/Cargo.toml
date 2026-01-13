@@ -1,0 +1,14 @@
+[package]
+name = "easy_pdf_reader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.29" # UI
+egui = "0.29"
+pdfium-render = "0.8" # PDF Engine, dynamic linking for easier start
+image = "0.25" # Bitmap manipulation
+anyhow = "1.0" # Error handling
+crossbeam-channel = "0.5" # Thread communication
+lru = "0.12" # Memory management (Cache eviction)
+rfd = "0.15" # Native file dialogs

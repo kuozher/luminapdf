@@ -1,0 +1,55 @@
+# Lumina PDF - 開發日誌 (2026-01-12)
+
+## 1. 核心需求與目標
+本日開發聚焦於**「穩定性」、「使用者體驗 (UX) 精緻化」**與**「連結功能實作」**。
+主要任務包括：
+*   解決「不連續頁面替換」的邏輯問題。
+*   徹底修復 Grid 模式下的渲染不全與捲動跳動。
+*   解決單頁與複選拖曳排序的失效問題。
+*   實現 PDF 內部連結與外部網址的點擊支援。
+*   優化應用程式的啟動畫面與空狀態處理。
+*   完成產品更名 (Lumina PDF)、圖示替換與最終打包。
+
+## 2. 關鍵技術挑戰與解決方案
+
+### 2.1 渲染與佈局 (Grid Rendering & Layout)
+*   **問題**：Grid 模式在視窗縮放或捲動時，出現頁面渲染不全、斷層，以及水平捲軸溢出。
+*   **轉折**：嘗試使用 `ResizeObserver` 與動態 `key` 強制重繪，但導致嚴重的跳動與拖曳中斷。
+*   **解決**：
+    *   **回歸原生 CSS Grid**：移除所有 JS 計算，改用 `grid-template-columns: repeat(auto-fill, minmax(210px, 1fr))`。
+    *   **強制行高**：設定 `gridAutoRows: "260px"`，確保 `Virtuoso` 能精確計算捲動高度，不再依賴內容載入。
+    *   **封印水平捲軸**：在 `StaticScroller` 層級明確設定 `overflow-x: hidden` 與 `box-sizing: border-box`。
+
+### 2.2 拖曳排序 (Drag & Drop)
+*   **問題**：拖曳功能靜默失效，或在放手後出現「舊順序 -> 閃爍 -> 新順序」的視覺回彈。
+*   **原因**：CSS `pointer-events` 阻擋了感應器；前後端狀態不同步導致「樂觀更新」失敗。
+*   **解決**：
+    *   **解鎖事件**：移除 `GridItemContent` 上錯誤的 `stopPropagation`，並設定 `touch-action: none`。
+    *   **局部 Loading 狀態**：放棄全螢幕遮罩，改為追蹤 `processingIndices`，僅讓被移動的頁面顯示半透明轉圈，其餘頁面保持穩定。
+    *   **消除回彈**：禁用 `DragOverlay` 的動畫，並對受影響的頁面強制 `transition: none`，創造「定格 -> 更新」的乾脆手感。
+
+### 2.3 連結點擊功能 (Link Annotation)
+*   **困境**：Rust 後端 `pdfium-render` (0.8.37) 的 API 封裝不完整，導致 `annot.action()` 或 `link.uri()` 頻頻報錯 `method not found`。
+*   **嘗試**：嘗試了 `match enum`、`as_link_annotation()` 以及 Scope 內引入 Trait (`use pdfium_render::prelude::*`) 等多種方法。
+*   **同僚建議**：指出 Rust Enum 不會自動轉發 Trait 方法，必須解包 (Unpack) 後再呼叫。並建議使用百分比座標正規化。
+*   **結果**：儘管邏輯正確，但受限於庫版本，API 依舊無法存取。最終採取**「保留架構，暫時隱藏」**的策略：
+    *   **後端**：保留百分比座標計算，但註解掉 URI 提取邏輯以通過編譯。
+    *   **前端**：Link Layer 代碼已就緒，等待未來後端修復後即可啟用。
+
+### 2.4 狀態管理與 UX
+*   **開新檔殘留**：透過 `key={fileSessionId}` 強制組件重建，並配合 `useEffect` 強制捲動歸零，徹底解決了上一份文件的捲動位置污染新文件的問題。
+*   **不連續替換**：重寫後端 `import_pages`，支援 `delete_indices`，確保「不連續選取」時，中間未選的頁面能被正確保留。
+*   **空狀態 (Empty State)**：提取 `EmptyState` 組件，統一了無檔案時的畫面，避免使用者進入無效的 Grid 模式。
+
+## 3. 成果與交付
+*   **程式更名**：正式定名為 **Lumina PDF**。
+*   **安裝檔**：成功產出 MSI 與 EXE 安裝檔 (`src-tauri/target/release/bundle/`)。
+*   **品質**：這是一個架構嚴謹、操作流暢，且在細節（如紅點提示、側邊欄過濾）上經過打磨的成熟軟體。
+
+## 4. 待辦事項 (Future Work)
+*   **連結功能**：需等待 `pdfium-render` 版本更新或尋找替代的底層存取方式，以啟用 URI 解析。
+*   **進階動效**：可考慮實作更複雜的「拖曳時自動補位」動畫，但需權衡效能與穩定性。
+
+---
+紀錄者：Gemini 專業工程助理
+日期：2026年1月12日

@@ -1,0 +1,26 @@
+[package]
+name = "lumina-pdf"
+version = "0.1.0"
+description = "A fast PDF reader"
+authors = ["you"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pdfium-render = "0.8"
+image = "0.25"
+base64 = "0.22"
+rfd = "0.14" # Native file dialog
+anyhow = "1.0"
+url = "2.5.8"
+lopdf = "0.34"
+
+[profile.dev.package."*"]
+opt-level = 3
