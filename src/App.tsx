@@ -81,6 +81,11 @@ function App() {
     const [processingIndices, setProcessingIndices] = useState<Set<number>>(new Set());
     const [affectedRange, setAffectedRange] = useState<[number, number] | null>(null);
 
+    // Password modal state
+    const [passwordModalPath, setPasswordModalPath] = useState<string | null>(null);
+    const [passwordInput, setPasswordInput] = useState("");
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+
     useEffect(() => {
         const timer = setTimeout(() => { setRenderScale(scale); }, 400);
         return () => clearTimeout(timer);
@@ -123,16 +128,41 @@ function App() {
         } catch (e) { console.error(e); }
     }, [deleteTarget]);
 
-    const loadFromFilePath = async (path: string) => {
+    const loadFromFilePath = async (path: string, password?: string) => {
         setIsFileLoading(true);
         try {
-            const meta = await invoke<PageMetadata[]>("load_document", { path });
+            const meta = await invoke<PageMetadata[]>("load_document", { path, password: password || null });
             const anns = await invoke<AnnotationData[] | null>("get_all_annotations");
             setPageMeta(meta); setCurrentPage(0); setCurrentFile(path); setAnnotations(anns || []);
             setViewMode('reader'); // Reset mode to reader on new file
             handleClearSearch(); setFocusedAnnotation(null); setScrollSignal(null); setReaderScrollTop(0); setDocId(Date.now()); setFileSessionId(Date.now()); setError(null);
-        } catch (e) { setError(String(e)); }
+            // Clear password modal on success
+            setPasswordModalPath(null); setPasswordInput(""); setPasswordError(null);
+        } catch (e) {
+            const errStr = String(e);
+            if (errStr.includes("PASSWORD_REQUIRED")) {
+                setPasswordModalPath(path);
+                setPasswordError(null);
+            } else if (errStr.includes("PASSWORD_INCORRECT")) {
+                setPasswordModalPath(path);
+                setPasswordError("Incorrect password. Please try again.");
+            } else {
+                setError(errStr);
+            }
+        }
         finally { setIsFileLoading(false); }
+    };
+
+    const handlePasswordSubmit = () => {
+        if (passwordModalPath && passwordInput) {
+            loadFromFilePath(passwordModalPath, passwordInput);
+        }
+    };
+
+    const handlePasswordCancel = () => {
+        setPasswordModalPath(null);
+        setPasswordInput("");
+        setPasswordError(null);
     };
 
     const openFile = async () => {
@@ -408,6 +438,40 @@ function App() {
                         <div className="flex justify-end gap-3">
                             <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded text-neutral-300 hover:bg-neutral-700 transition-colors text-sm">Cancel</button>
                             <button onClick={confirmDelete} className="px-4 py-2 rounded bg-red-600 hover:bg-red-500 text-white font-medium transition-colors text-sm">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {passwordModalPath !== null && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl p-6 max-w-sm w-full transform transition-all scale-100">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                                <AlertCircle size={20} className="text-amber-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold text-white">Password Protected</h3>
+                                <p className="text-neutral-500 text-xs truncate max-w-[200px]">{passwordModalPath.split(/[\/\\]/).pop()}</p>
+                            </div>
+                        </div>
+                        <p className="text-neutral-400 mb-4 text-sm">This document is password protected. Please enter your password to unlock.</p>
+                        {passwordError && (
+                            <div className="bg-red-900/30 border border-red-700 text-red-400 text-xs px-3 py-2 rounded mb-4">
+                                {passwordError}
+                            </div>
+                        )}
+                        <input
+                            type="password"
+                            autoFocus
+                            placeholder="Enter password..."
+                            value={passwordInput}
+                            onChange={(e) => setPasswordInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordSubmit(); if (e.key === 'Escape') handlePasswordCancel(); }}
+                            className="w-full bg-neutral-900 border border-neutral-600 rounded px-3 py-2 text-white text-sm mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        />
+                        <div className="flex justify-end gap-3">
+                            <button onClick={handlePasswordCancel} className="px-4 py-2 rounded text-neutral-300 hover:bg-neutral-700 transition-colors text-sm">Cancel</button>
+                            <button onClick={handlePasswordSubmit} disabled={!passwordInput} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-600 disabled:cursor-not-allowed text-white font-medium transition-colors text-sm">Unlock</button>
                         </div>
                     </div>
                 </div>

@@ -118,7 +118,14 @@ async fn pick_files() -> Vec<String> {
 fn get_or_load_doc(path: &str, docs: &mut HashMap<String, PdfDocument<'static>>) -> Result<(), String> {
     if docs.contains_key(path) { return Ok(()); }
     let pdfium = &PDFIUM_LIB.get().ok_or("Pdfium not initialized")?.0;
-    let doc = pdfium.load_pdf_from_file(path, None).map_err(|e| e.to_string())?;
+    let doc = pdfium.load_pdf_from_file(path, None).map_err(|e| {
+        let err_str = e.to_string();
+        if err_str.contains("password") || err_str.contains("Password") {
+            "PASSWORD_REQUIRED".to_string()
+        } else {
+            err_str
+        }
+    })?;
     docs.insert(path.to_string(), doc);
     Ok(())
 }
@@ -139,14 +146,37 @@ fn get_metadata_internal(v_pages: &Vec<VirtualPage>, docs: &HashMap<String, PdfD
 }
 
 #[tauri::command]
-async fn load_document(state: tauri::State<'_, AppState>, path: String) -> Result<Vec<PageMetadata>, String> {
+async fn load_document(state: tauri::State<'_, AppState>, path: String, password: Option<String>) -> Result<Vec<PageMetadata>, String> {
     // Lock Order: VirtualPages -> Documents -> RenderCache (Consistency Fix)
     let mut virtual_pages_guard = state.virtual_pages.lock().map_err(|_| "Lock fail")?;
     let mut docs = state.documents.lock().map_err(|_| "Lock fail")?;
     let mut cache = state.render_cache.lock().map_err(|e| e.to_string())?;
 
     docs.clear();
-    get_or_load_doc(&path, &mut docs)?;
+    
+    // Load document with optional password
+    let pdfium = &PDFIUM_LIB.get().ok_or("Pdfium not initialized")?.0;
+    
+    // We need to leak the password to 'static because PdfDocument lifetime is tied to it
+    // and we store PdfDocument<'static> in the AppState.
+    let password_static: Option<&'static str> = password.as_ref().map(|p| {
+        Box::leak(p.clone().into_boxed_str()) as &'static str
+    });
+
+    let doc = pdfium.load_pdf_from_file(&path, password_static).map_err(|e| {
+        let err_str = e.to_string();
+        if err_str.contains("password") || err_str.contains("Password") {
+            if password.is_none() {
+                "PASSWORD_REQUIRED".to_string()
+            } else {
+                "PASSWORD_INCORRECT".to_string()
+            }
+        } else {
+            err_str
+        }
+    })?;
+    docs.insert(path.clone(), doc);
+    
     let doc = docs.get(&path).ok_or("Doc missing")?;
     
     let mut name_map = HashMap::new();
