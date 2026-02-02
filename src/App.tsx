@@ -92,13 +92,16 @@ function App() {
     }, [scale]);
 
     useEffect(() => {
-        const appWindow = getCurrentWindow();
-        if (currentFile) {
-            const fileName = currentFile.split(/[\/]/).pop();
-            appWindow.setTitle(`Lumina PDF - ${fileName}`);
-        } else {
-            appWindow.setTitle("Lumina PDF");
-        }
+        const updateTitle = async () => {
+            const appWindow = getCurrentWindow();
+            if (currentFile) {
+                const fileName = currentFile.split(/[/\\]/).pop();
+                await appWindow.setTitle(`${fileName} - Lumina PDF`);
+            } else {
+                await appWindow.setTitle("Lumina PDF");
+            }
+        };
+        updateTitle();
     }, [currentFile]);
 
     useEffect(() => {
