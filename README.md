@@ -136,7 +136,7 @@ This project is licensed under the [MIT License](https://www.google.com/url?sa=E
 
 
 ## ✍️ Author's Note
-Initially, my goal was simply to create a lightweight alternative to Adobe Reader, despite having limited knowledge of deep frontend or backend coding. Consequently, the execution of this project was entrusted almost entirely to AI—specifically, 90% of the code was generated using the Google Gemini CLI (Gemini Pro 3 model), with my role serving as the adjudicator of its suggestions.
+Initially, my goal was simply to create a lightweight alternative to Adobe Reader, despite having limited knowledge of deep frontend or backend coding. Consequently, the execution of this project was entrusted almost entirely to AI—specifically, in the early phase, 90% of the code was generated using the Google Gemini CLI (Gemini Pro 3 model), and starting with v1.1.0, the project has been handed over to Codex, with my role serving as the adjudicator of its suggestions.
 
 I realize some might dismiss this as just another piece of 'AI slop' created by someone who doesn't understand the underlying code rules. However, that doesn't matter to me. When problems arose, they were solved; when decisions were needed, I grasped the context and acted on logic. A tool is ultimately just a tool, and my only hope is that the final product brings real value to its users.
 
@@ -227,7 +227,7 @@ I realize some might dismiss this as just another piece of 'AI slop' created by 
 
 
 ## ✍️ 我的一些碎碎唸
-一開始，我只是想要做個 adobe reader 平替，而且我根本不懂太深的前後端編碼。所以，原則上，這程式在執行面上幾乎完全交付給 AI 進行處理，90%使用的是 Google Gemini CLI 的 gemini pro 3 model，我本身負責對 AI 的建議進行判斷。我知道有些人會覺得這又是另一個 AI slop 產物，明明對編碼內容規則一無所知，但，無所謂，問題來了就解決，判斷來了就理解脈絡，合理就做，工具始終是工具，但我更希望最終都是能讓使用者受惠。
+一開始，我只是想要做個 adobe reader 平替，而且我根本不懂太深的前後端編碼。所以，原則上，這程式在執行面上幾乎完全交付給 AI 進行處理，前期有 90% 使用的是 Google Gemini CLI 的 gemini pro 3 model， v1.1.0 開始交給 Codex 處理，我本身負責對 AI 的建議進行判斷。我知道有些人會覺得這又是另一個 AI slop 產物，明明對編碼內容規則一無所知，但，無所謂，問題來了就解決，判斷來了就理解脈絡，合理就做，工具始終是工具，但我更希望最終都是能讓使用者受惠。
 
 
 
