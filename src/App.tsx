@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+// import { open } from "@tauri-apps/plugin-shell";
+import PrintSettingsModal from "./components/PrintSettingsModal";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { FolderOpen, ZoomIn, ZoomOut, Loader2, Book, MessageSquare, Grid, List as ListIcon, Save, Copy, Search, X, AlertCircle, FileText, Edit2 } from "lucide-react";
+import { FolderOpen, ZoomIn, ZoomOut, Loader2, Book, MessageSquare, Grid, List as ListIcon, Save, Copy, Search, X, AlertCircle, FileText, Edit2, Printer, ChevronDown, Image as ImageIcon } from "lucide-react";
 import ReaderView from "./components/ReaderView";
 import OrganizerView from "./components/OrganizerView";
 import OrganizePill from "./components/OrganizePill";
 import EmptyState from "./components/EmptyState";
+import ExportImageModal, { ExportSettings } from "./components/ExportImageModal";
 
 interface AnnotationData {
     page_index: number;
@@ -66,6 +69,7 @@ function App() {
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [focusedSearchResult, setFocusedSearchResult] = useState<SearchResult | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const annotationItemRefs = useRef<Map<AnnotationData, HTMLDivElement | null>>(new Map());
 
     const [selectionInfo, setSelectionInfo] = useState<{ x: number, y: number, text: string } | null>(null);
 
@@ -85,6 +89,8 @@ function App() {
     const [passwordModalPath, setPasswordModalPath] = useState<string | null>(null);
     const [passwordInput, setPasswordInput] = useState("");
     const [passwordError, setPasswordError] = useState<string | null>(null);
+
+    const [showSaveMenu, setShowSaveMenu] = useState(false);
 
     useEffect(() => {
         const timer = setTimeout(() => { setRenderScale(scale); }, 400);
@@ -192,6 +198,60 @@ function App() {
                 setToastMessage("Document Saved"); setShowToast(true); setTimeout(() => setShowToast(false), 3000);
             }
         } catch (e) { setError(String(e)); setIsSaving(false); }
+    };
+
+
+    const handlePrint = () => {
+        if (!currentFile) return;
+        setShowSaveMenu(false);
+        setShowPrintModal(true);
+    };
+
+
+
+    // ... (inside component)
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+
+    // ... (existing functions)
+
+    const handleSaveImage = () => {
+        setShowSaveMenu(false);
+        setShowExportModal(true);
+    };
+
+    const handleExportConfirm = async (settings: ExportSettings) => {
+        setShowExportModal(false);
+        try {
+            // Pick path logic: pass the format to get correct extension
+            const path = await invoke<string | null>("pick_save_path_image", {
+                format: settings.format
+            });
+
+            if (path) {
+                setIsSaving(true);
+                // Call new backend command
+                await invoke("export_images", {
+                    settings: {
+                        scope: settings.scope,
+                        custom_range: settings.customRange,
+                        format: settings.format,
+                        path: path,
+                        current_page_index: currentPage // Backend needs this context
+                    }
+                });
+                setIsSaving(false);
+                setToastMessage("Images exported successfully");
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 3000);
+            }
+        } catch (e) {
+            setIsSaving(false);
+            setToastMessage("Export failed: " + String(e));
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 5000);
+            console.error("Export error:", e);
+        }
     };
 
     const executeSearch = useCallback(async (query: string) => {
@@ -375,9 +435,13 @@ function App() {
         else { scrollToPage(index); }
     }, [viewMode, handleToggleSelect, scrollToPage]);
 
-    const handleAnnotationClick = useCallback((ann: AnnotationData) => {
+    const handleAnnotationClick = useCallback((ann: AnnotationData, shouldScroll = true) => {
         setFocusedAnnotation(ann); setFocusedSearchResult(null);
-        setScrollSignal({ index: ann.page_index, timestamp: Date.now(), annotation: ann });
+        setShowRightPanel(true);
+        setRightPanelTab('annotations');
+        if (shouldScroll) {
+            setScrollSignal({ index: ann.page_index, timestamp: Date.now(), annotation: ann });
+        }
         setCurrentPage(ann.page_index);
     }, []);
 
@@ -392,6 +456,11 @@ function App() {
         else if (rightPanelTab === tab) { setShowRightPanel(false); }
         else { setRightPanelTab(tab); if (tab === 'search') setTimeout(() => searchInputRef.current?.focus(), 50); }
     }, [showRightPanel, rightPanelTab]);
+
+    useEffect(() => {
+        if (!focusedAnnotation || !showRightPanel || rightPanelTab !== 'annotations') return;
+        annotationItemRefs.current.get(focusedAnnotation)?.scrollIntoView({ block: 'nearest' });
+    }, [focusedAnnotation, showRightPanel, rightPanelTab]);
 
     const handleMouseUp = useCallback(() => {
         setTimeout(() => {
@@ -412,6 +481,10 @@ function App() {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.key === 'z') { e.preventDefault(); handleUndo(); }
             if (e.ctrlKey && e.key === 'f') { e.preventDefault(); handleToggleRightPanel('search'); }
+            if ((e.ctrlKey && e.key === 'p') || (e.ctrlKey && e.shiftKey && e.key === 'P')) {
+                e.preventDefault();
+                handlePrint();
+            }
             if (e.key === 'Delete' && selectedPages.size > 0 && viewMode === 'organizer') { e.preventDefault(); handleBatchDelete(); }
         };
         const disableContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -488,6 +561,52 @@ function App() {
                     <button onClick={() => setShowToast(false)} className="text-neutral-500 hover:text-white ml-2">✕</button>
                 </div>
             </div>
+            {/* Export Dropdown Menu - Rendered at root level to escape toolbar stacking context */}
+            {showSaveMenu && (
+                <>
+                    <div className="fixed inset-0 z-[200]" onClick={() => setShowSaveMenu(false)} />
+                    <div
+                        className="fixed z-[201] w-52 bg-neutral-900/95 backdrop-blur-xl border border-neutral-600/50 rounded-lg shadow-2xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-150"
+                        style={{
+                            top: '52px',
+                            left: document.getElementById('export-dropdown-trigger')?.getBoundingClientRect().left ?? 120
+                        }}
+                    >
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Export Options</div>
+                        <button
+                            onClick={() => { handleSave(); setShowSaveMenu(false); }}
+                            className="w-full text-left px-3 py-2 text-sm text-neutral-200 hover:bg-blue-600/80 hover:text-white flex items-center gap-3 cursor-pointer transition-colors"
+                        >
+                            <Save size={16} className="text-neutral-400" />
+                            <div>
+                                <div className="font-medium">Save as PDF</div>
+                                <div className="text-[10px] text-neutral-500">Export entire document</div>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => { handleSaveImage(); }}
+                            className="w-full text-left px-3 py-2 text-sm text-neutral-200 hover:bg-blue-600/80 hover:text-white flex items-center gap-3 cursor-pointer transition-colors"
+                        >
+                            <ImageIcon size={16} className="text-neutral-400" />
+                            <div>
+                                <div className="font-medium">Save as Image</div>
+                                <div className="text-[10px] text-neutral-500">Export current view to PNG/JPG</div>
+                            </div>
+                        </button>
+                        <div className="h-px bg-neutral-700/50 my-1.5 mx-2" />
+                        <button
+                            onClick={() => { handlePrint(); }}
+                            className="w-full text-left px-3 py-2 text-sm text-neutral-200 hover:bg-blue-600/80 hover:text-white flex items-center gap-3 cursor-pointer transition-colors"
+                        >
+                            <Printer size={16} className="text-neutral-400" />
+                            <div>
+                                <div className="font-medium">Print</div>
+                                <div className="text-[10px] text-neutral-500">Open in system viewer</div>
+                            </div>
+                        </button>
+                    </div>
+                </>
+            )}
             {(isFileLoading || isSaving) && (
                 <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
                     <Loader2 className="w-16 h-16 text-blue-500 animate-spin mb-6" />
@@ -504,9 +623,16 @@ function App() {
                         <FolderOpen size={16} /> <span className="hidden md:inline">Open</span>
                     </button>
                     {currentFile && (
-                        <button onClick={handleSave} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-md text-sm font-medium transition-colors shadow-lg active:scale-95">
-                            <Save size={16} /> <span className="hidden md:inline">Save</span>
-                        </button>
+                        <div className="relative flex items-center">
+                            <button
+                                id="export-dropdown-trigger"
+                                onClick={() => setShowSaveMenu(!showSaveMenu)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-md shadow-lg active:scale-95 transition-all text-sm font-medium text-white border border-blue-500 hover:border-blue-400"
+                            >
+                                <span className="hidden md:inline">Export</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${showSaveMenu ? 'rotate-180' : ''}`} />
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -578,7 +704,7 @@ function App() {
                     {!currentFile ? (
                         <EmptyState isFileLoading={isFileLoading} />
                     ) : viewMode === 'reader' ? (
-                        <ReaderView key={fileSessionId} pageMeta={pageMeta} scale={scale} renderScale={renderScale} docId={docId} error={error} currentPage={currentPage} setCurrentPage={setCurrentPage} scrollSignal={scrollSignal} onScrollComplete={() => setScrollSignal(null)} initialScrollTop={readerScrollTop} onScrollTopChange={setReaderScrollTop} annotations={annotations} focusedAnnotation={focusedAnnotation} focusedSearchResult={focusedSearchResult} />
+                        <ReaderView key={fileSessionId} pageMeta={pageMeta} scale={scale} renderScale={renderScale} docId={docId} error={error} currentPage={currentPage} setCurrentPage={setCurrentPage} scrollSignal={scrollSignal} onScrollComplete={() => setScrollSignal(null)} initialScrollTop={readerScrollTop} onScrollTopChange={setReaderScrollTop} annotations={annotations} focusedAnnotation={focusedAnnotation} focusedSearchResult={focusedSearchResult} onAnnotationClick={(ann) => handleAnnotationClick(ann, false)} />
                     ) : (
                         <div className="relative flex-1">
                             <OrganizerView
@@ -610,7 +736,15 @@ function App() {
                             {rightPanelTab === 'annotations' ? (
                                 annotations.filter(a => a.subtype !== 'Link').length === 0 ? <div className="text-center text-neutral-500 text-sm mt-4">No Annotations</div> :
                                     annotations.filter(a => a.subtype !== 'Link').map((ann, i) => (
-                                        <div key={i} onClick={() => handleAnnotationClick(ann)} className={`p-3 rounded border text-sm cursor-pointer transition-all ${ann === focusedAnnotation ? 'bg-blue-900 border-blue-500 ring-1 ring-blue-500' : 'bg-neutral-800 border-neutral-700 hover:border-blue-500 hover:ring-1 hover:ring-blue-500'}`}>
+                                        <div
+                                            key={i}
+                                            ref={(node) => {
+                                                if (node) annotationItemRefs.current.set(ann, node);
+                                                else annotationItemRefs.current.delete(ann);
+                                            }}
+                                            onClick={() => handleAnnotationClick(ann)}
+                                            className={`p-3 rounded border text-sm cursor-pointer transition-all ${ann === focusedAnnotation ? 'bg-blue-900 border-blue-500 ring-1 ring-blue-500' : 'bg-neutral-800 border-neutral-700 hover:border-blue-500 hover:ring-1 hover:ring-blue-500'}`}
+                                        >
                                             <div className="flex justify-between items-center mb-1"><span className="text-blue-400 font-bold text-xs">{ann.subtype}</span><span className="text-neutral-500 text-xs">P. {ann.page_index + 1}</span></div>
                                             <div className="text-neutral-200 break-words whitespace-pre-wrap line-clamp-4">{ann.content || <span className="italic text-neutral-500">No content</span>}</div>
                                         </div>
@@ -639,6 +773,21 @@ function App() {
                     </div>
                 )}
             </div>
+            {/* Export Modal */}
+            <ExportImageModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                onExport={handleExportConfirm}
+                currentPage={currentPage}
+                totalPages={pageMeta.length}
+            />
+            <PrintSettingsModal
+                isOpen={showPrintModal}
+                onClose={() => setShowPrintModal(false)}
+                currentPage={currentPage}
+                totalPages={pageMeta.length}
+                fileName={currentFile ? currentFile.split(/[/\\]/).pop() || "" : "Document"}
+            />
         </div>
     );
 }

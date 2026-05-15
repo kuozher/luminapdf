@@ -2,7 +2,7 @@ import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, MessageSquare } from "lucide-react";
 
 interface AnnotationData {
   page_index: number;
@@ -35,16 +35,18 @@ interface ReaderViewProps {
   annotations: AnnotationData[];
   focusedAnnotation: AnnotationData | null;
   focusedSearchResult: SearchResult | null;
+  onAnnotationClick: (annotation: AnnotationData) => void;
 }
 
 export default function ReaderView({
   pageMeta, scale, renderScale, docId, error,
   currentPage, setCurrentPage, scrollSignal, onScrollComplete, initialScrollTop, onScrollTopChange,
-  annotations, focusedAnnotation, focusedSearchResult
+  annotations, focusedAnnotation, focusedSearchResult, onAnnotationClick
 }: ReaderViewProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const ignoreScrollUntil = useRef<number>(0);
   const isInitialMount = useRef(true);
+  const [hoveredAnnotation, setHoveredAnnotation] = useState<AnnotationData | null>(null);
 
   // Force scroll to top when new file is loaded (component mounts with new fileSessionId)
   // Only scroll once when pageMeta first becomes available
@@ -130,6 +132,7 @@ export default function ReaderView({
           const displayWidth = meta.width * scale;
           const displayHeight = meta.height * scale;
           const imgUrl = `http://pdf-page.localhost/render?page=${index}&scale=${renderScale}&docId=${docId}&dpr=${window.devicePixelRatio}`;
+          const pageAnnotations = annotations.filter(a => a.page_index === index && a.subtype !== 'Link');
 
           return (
             <div className="flex justify-center py-8 bg-neutral-900 group/page min-w-max overflow-x-auto">
@@ -180,6 +183,48 @@ export default function ReaderView({
 
                 <TextLayer pageIndex={index} scale={scale} docId={docId} pageHeight={meta.height} />
 
+                {pageAnnotations.map((ann, i) => {
+                  const left = ann.rect[0] * scale;
+                  const top = (ann.page_height - ann.rect[3]) * scale;
+                  const width = (ann.rect[2] - ann.rect[0]) * scale;
+                  const height = (ann.rect[3] - ann.rect[1]) * scale;
+                  const maxMarkerLeft = Math.max(4, displayWidth - 28);
+                  const maxMarkerTop = Math.max(4, displayHeight - 28);
+                  const markerLeft = Math.min(Math.max(left + width + 6, 4), maxMarkerLeft);
+                  const markerTop = Math.min(Math.max(top - 14, 4), maxMarkerTop);
+                  const isActive = ann === focusedAnnotation || ann === hoveredAnnotation;
+
+                  return (
+                    <div key={i} className="absolute inset-0 pointer-events-none z-40">
+                      {isActive && (
+                        <div
+                          className="absolute bg-amber-400/20 ring-2 ring-amber-400 rounded-sm annotation-highlight"
+                          style={{ left: left - 4, top: top - 4, width: width + 8, height: height + 8 }}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        className={`absolute w-7 h-7 rounded-full border flex items-center justify-center transition-all pointer-events-auto cursor-pointer ${
+                          isActive
+                            ? 'bg-amber-400 text-neutral-950 border-amber-200 shadow-lg shadow-amber-900/40 annotation-marker-bounce'
+                            : 'bg-amber-300/20 text-amber-800/70 border-amber-400/35 shadow-sm shadow-amber-900/10 hover:bg-amber-300/40 hover:text-amber-900 hover:border-amber-500/60'
+                        }`}
+                        style={{ left: markerLeft, top: markerTop }}
+                        title={ann.content ? String(ann.content) : `${ann.subtype} annotation`}
+                        aria-label={ann.content ? `Annotation: ${ann.content}` : `${ann.subtype} annotation`}
+                        onMouseEnter={() => setHoveredAnnotation(ann)}
+                        onMouseLeave={() => setHoveredAnnotation(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAnnotationClick(ann);
+                        }}
+                      >
+                        <MessageSquare size={15} strokeWidth={2.4} />
+                      </button>
+                    </div>
+                  );
+                })}
+
                 {focusedSearchResult && focusedSearchResult.page_index === index && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden">
                     {focusedSearchResult.rects.map((rect, i) => {
@@ -193,16 +238,6 @@ export default function ReaderView({
                   </div>
                 )}
 
-                {focusedAnnotation && focusedAnnotation.page_index === index && (
-                  <div className="absolute bg-amber-500/30 ring-2 ring-amber-500 rounded-sm pointer-events-none animate-pulse z-40"
-                    style={{
-                      left: focusedAnnotation.rect[0] * scale - 4,
-                      top: (focusedAnnotation.page_height - focusedAnnotation.rect[3]) * scale - 4,
-                      width: (focusedAnnotation.rect[2] - focusedAnnotation.rect[0]) * scale + 8,
-                      height: (focusedAnnotation.rect[3] - focusedAnnotation.rect[1]) * scale + 8,
-                    }}
-                  />
-                )}
               </div>
             </div>
           );
